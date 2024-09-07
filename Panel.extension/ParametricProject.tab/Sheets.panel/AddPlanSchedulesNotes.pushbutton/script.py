@@ -268,6 +268,7 @@ with revit.Transaction('Add Schedules and Notes'):
                         , anchor_pt.Y - y_offset, 0)
       schedule.Point = schedule_point
       anchor_pt = XYZ(schedule_point.X - margin, schedule_point.Y + y_offset, 0)
+
   elif is_room_for_viewports["below"]:
     max_pt = sheet_outline.MaximumPoint
     min_pt = sheet_outline.MinimumPoint

@@ -2,9 +2,6 @@ from Autodesk.Revit.DB import *
 from pyrevit import revit, forms, script
 from System.Collections.Generic import List
 
-## Only handles beams systems running horiz
-## Sort though plans
-## Need to collect only the beams on the current plan
 def group_beams_by_beam_system(beam_list):
   grouped_beams = {}
   for beam in beam_list:

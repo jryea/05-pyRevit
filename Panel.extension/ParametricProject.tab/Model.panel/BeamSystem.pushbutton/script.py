@@ -84,12 +84,10 @@ with revit.Transaction('Create Beam Systems'):
     beam_type = beam_type_list[0]
     for cur_beam_type in beam_type_list:
       beam_type = find_closest_joist_type(b_type)
-    
     print('beam string from JSON: ')
     print(b_type)
     print('Revit Beam Type Name: ')
     print(Element.Name.GetValue(beam_type))
-    
     curve_list =[]
     curve_ar_array = doc.GetElement(floor.SketchId).Profile
     for curve_array in curve_ar_array:

@@ -1,3 +1,4 @@
+import math
 from Autodesk.Revit.DB import *
 from pyrevit import revit, forms, script
 from System.Collections.Generic import List
@@ -6,8 +7,39 @@ from System.Collections.Generic import List
 elevation_view_type_name = "Show View Name"
 view_classification = "DOCUMENT"
 elevation_template_name = "S - Structural Framing (document)"
+elev_name = "FRAMING ELEVATION "
+beam_tag_family_name = "IMEG_Structural Framing Tag"
+beam_tag_type_name = "Standard"
+column_tag_family_name = "IMEG_Structural Column Tag"
+column_tag_type_name = "45"
+tag_offset = 0.75
+text_note_type_name = 'IMEG_3/32" Arial (arrow)'
+elevation_beam_text = "STEEL BEAM - SEE PLAN"
+elevation_column_text = "STEEL COLUMN - SEE PLAN"
 
-## FUNCTIONS ###
+def is_framing_direction_taggable(view_direction, framing_elem):
+  framing_elem_FO = framing_elem.FacingOrientation
+  if view_direction.IsAlmostEqualTo(XYZ.BasisY)\
+  or view_direction.IsAlmostEqualTo(-(XYZ.BasisY)):
+    if framing_elem_FO.IsAlmostEqualTo(XYZ.BasisX)\
+    or framing_elem_FO.IsAlmostEqualTo(-(XYZ.BasisX)):
+      return False
+    else:
+      return True
+  else:
+    if framing_elem_FO.IsAlmostEqualTo(XYZ.BasisY)\
+    or framing_elem_FO.IsAlmostEqualTo(-(XYZ.BasisY)):
+      return False
+    else:
+      return True
+
+
+def get_perp_vector_positive_Z(vector, facing_vector):
+  perp_vector = vector.CrossProduct(facing_vector)
+  if perp_vector.Z < 0:
+    perp_vector = perp_vector.Negate()
+  return perp_vector
+
 def dist_between_closest_curve_points(axis, curve1, curve2):
   if axis.lower() == 'x':
     c1_1 = curve1.GetEndPoint(0).X
@@ -218,12 +250,9 @@ uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
 active_view = uidoc.ActiveView
 
-## Get user selected elements
 selection = uidoc.Selection
 selected_element_ids = selection.GetElementIds()
 selected_elements = [doc.GetElement(element_id) for element_id in selected_element_ids]
-
-
 
 ### COLLECTORS ###
 framing_collector = FilteredElementCollector(doc)\
@@ -240,18 +269,42 @@ view_plan_collector = FilteredElementCollector(doc)\
 view_type_collector = FilteredElementCollector(doc)\
                       .OfCategory(BuiltInCategory.OST_Views)\
 
+framing_tag_collector = FilteredElementCollector(doc)\
+                        .OfCategory(BuiltInCategory.OST_StructuralFramingTags)\
+                        .WhereElementIsElementType()
+
+column_tag_collector = FilteredElementCollector(doc)\
+                        .OfCategory(BuiltInCategory.OST_StructuralColumnTags)\
+                        .WhereElementIsElementType()
+
+text_note_type_collector = FilteredElementCollector(doc)\
+                          .OfCategory(BuiltInCategory.OST_TextNotes)\
+                          # .WhereElementIsElementType()
+
 framing_list = list(framing_collector)
 vft_list = list(vft_collector)
 view_plans = list(view_plan_collector)
 view_type_list = list(view_type_collector)
 view_templates = [view for view in view_type_list if view.IsTemplate]
 framing_template = [view for view in view_templates if Element.Name.GetValue(view) == elevation_template_name][0]
-
-print(Element.Name.GetValue(framing_template))
+framing_tag_types = list(framing_tag_collector)
+column_tag_types = list(column_tag_collector)
+text_note_type_list = list(text_note_type_collector)
+text_note_type = [text for text in text_note_type_list\
+                  if Element.Name.GetValue(text)][0]
+text_note_type_id = text_note_type.GetTypeId()
 
 brace_list = [brace for brace in framing_list\
               if brace.StructuralType\
               == Structure.StructuralType.Brace]
+
+beam_tag = [tag for tag in framing_tag_types\
+            if Element.Name.GetValue(tag) == beam_tag_type_name\
+            and tag.FamilyName == beam_tag_family_name][0]
+
+column_tag = [tag for tag in column_tag_types\
+             if Element.Name.GetValue(tag) ==  column_tag_type_name\
+              and tag.FamilyName == column_tag_family_name][0]
 
 placed_view_plans = []
 
@@ -271,11 +324,13 @@ for vft in vft_list:
   if vft.ViewFamily == ViewFamily.Section:
     view_family_type_section = vft
 
-with revit.Transaction('Create Beams and Joists'):
+framing_elevations = []
+
+with revit.Transaction('Create Framing Elevations'):
   brace_pairs = create_brace_pairs(brace_list)
   brace_pair_ids = []
   brace_pair_groups_vertical = get_vertical_brace_pairs(brace_pairs)
-  for bpg in brace_pair_groups_vertical:
+  for index, bpg in enumerate(brace_pair_groups_vertical):
     bpg_extents = get_brace_pair_group_extents(bpg)
     axis = bpg_extents["axis"]
     axis_coord = bpg_extents["axis_coord"]
@@ -292,6 +347,12 @@ with revit.Transaction('Create Beams and Joists'):
     point = None
     elev_marker = None
     framing_elev = None
+    elev_name_suffix = None
+    if index < 10:
+      elev_name_suffix = "0" + str(index+1)
+    else:
+      elev_name_suffix = str(index+1)
+    framing_elev_name = elev_name  + elev_name_suffix
 
     if axis.lower() == 'x':
       point = XYZ(mid_xy, axis_coord - elevation_marker_offset, mid_z)
@@ -304,18 +365,97 @@ with revit.Transaction('Create Beams and Joists'):
       bb.Max = XYZ(point.X + width/2 + framing_view_border, point.Z + height/2 + framing_view_border, 0)
       framing_elevation.CropBox = bb
       framing_elevation.ViewTemplateId = framing_template.Id
+      framing_elevation.Name = framing_elev_name
       depth_param = framing_elevation.get_Parameter(BuiltInParameter.VIEWER_BOUND_OFFSET_FAR)
       depth_param.Set(12)
+      framing_elevations.append(framing_elevation)
+      annotation_crop_param = framing_elevation.get_Parameter(BuiltInParameter.VIEWER_ANNOTATION_CROP_ACTIVE)
+      annotation_crop_param.Set(True)
+
     else:
       point = XYZ(axis_coord  + elevation_marker_offset, mid_xy, mid_z)
       elev_marker = ElevationMarker.CreateElevationMarker(doc, view_family_type.Id, point, 50)
       framing_elevation = elev_marker.CreateElevation(doc,active_view.Id,0)
+      framing_elevation.Name = framing_elev_name
       bb = framing_elevation.get_BoundingBox(None)
       bb.Min = XYZ(point.Y - width/2 - framing_view_border, point.Z - height/2 - framing_view_border, 0)
       bb.Max = XYZ(point.Y + width/2 + framing_view_border, point.Z + height/2 + framing_view_border, 0)
       framing_elevation.CropBox = bb
+      framing_elevation.ViewTemplateId = framing_template.Id
       depth_param = framing_elevation.get_Parameter(BuiltInParameter.VIEWER_BOUND_OFFSET_FAR)
       depth_param.Set(12)
+      framing_elevations.append(framing_elevation)
+      annotation_crop_param = framing_elevation.get_Parameter(BuiltInParameter.VIEWER_ANNOTATION_CROP_ACTIVE)
+      annotation_crop_param.Set(True)
+
+with revit.Transaction('Tag Elevations'):
+
+  for elevation in framing_elevations:
+
+    column_collector = FilteredElementCollector(doc, elevation.Id)\
+                    .OfCategory(BuiltInCategory.OST_StructuralColumns)\
+                    .WhereElementIsNotElementType()
+    framing_collector = FilteredElementCollector(doc, elevation.Id)\
+                    .OfCategory(BuiltInCategory.OST_StructuralFraming)\
+                    .WhereElementIsNotElementType()
+
+    column_list = list(column_collector)
+    framing_list = list(framing_collector)
+    brace_list = [brace for brace in framing_list\
+              if brace.StructuralType\
+              == Structure.StructuralType.Brace]
+    beam_list = [beam for beam  in framing_list\
+                  if beam.StructuralType\
+                  == Structure.StructuralType.Beam]
+
+    view_direction = elevation.ViewDirection
+
+    for brace in brace_list:
+      brace_curve = brace.Location.Curve
+      brace_facing_xyz = brace.FacingOrientation
+      brace_hand_xyz = brace.HandOrientation
+
+      offset_direction = get_perp_vector_positive_Z(brace_hand_xyz, brace_facing_xyz)
+      midpoint = brace_curve.Evaluate(0.5, True)
+      point = midpoint.Add(offset_direction.Multiply(tag_offset))
+
+      if is_framing_direction_taggable(view_direction, brace):
+        tag = IndependentTag.Create(doc, beam_tag.Id, elevation.Id, Reference(brace), False, TagOrientation.AnyModelDirection, point)
+
+    beam_tag_offset = tag_offset + 0.2
+    for beam in beam_list:
+      beam_curve = beam.Location.Curve
+      beam_facing_xyz = beam.FacingOrientation
+      beam_hand_xyz = beam.HandOrientation
+
+      offset_direction = get_perp_vector_positive_Z(beam_hand_xyz, beam_facing_xyz)
+      midpoint = beam_curve.Evaluate(0.5, True)
+      point = midpoint.Add(offset_direction.Multiply(beam_tag_offset + 0.3))
+
+      beam_text_note_options = TextNoteOptions(text_note_type_id)
+      beam_text_note_options.HorizontalAlignment = HorizontalTextAlignment.Center
+      if is_framing_direction_taggable(view_direction, beam):
+        text_note = TextNote.Create(doc, elevation.Id, point, elevation_beam_text, beam_text_note_options)
+
+    for column in column_list:
+      column_xy_point = column.Location.Point
+      column_bb = column.get_BoundingBox(None)
+      column_base_z = column_bb.Min.Z
+      column_top_z = column_bb.Max.Z
+      mid_z = (column_base_z + column_top_z)/2
+      point = None
+
+      if view_direction.IsAlmostEqualTo(XYZ.BasisX)\
+        or view_direction.IsAlmostEqualTo(-(XYZ.BasisX)):
+        point = XYZ(column_xy_point.X, column_xy_point.Y - (tag_offset + 0.5), mid_z)
+      else:
+        point = XYZ(column_xy_point.X - (tag_offset + 0.5),  column_xy_point.Y, mid_z)
+
+      col_text_note_options = TextNoteOptions(text_note_type_id)
+      col_text_note_options.HorizontalAlignment = HorizontalTextAlignment.Center
+      col_text_note_options.Rotation = 90*math.pi/180
+      text_note = TextNote.Create(doc, elevation.Id, point, elevation_column_text, col_text_note_options)
+
 
 
 
