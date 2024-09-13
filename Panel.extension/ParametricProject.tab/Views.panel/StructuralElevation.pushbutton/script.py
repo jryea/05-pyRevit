@@ -17,6 +17,13 @@ text_note_type_name = 'IMEG_3/32" Arial (arrow)'
 elevation_beam_text = "STEEL BEAM - SEE PLAN"
 elevation_column_text = "STEEL COLUMN - SEE PLAN"
 
+## Variables for sheet placement
+viewport_type_name = "IMEG_No View Title"
+foundation_sheet_name = "FRAMING ELEVATIONS"
+
+def add_elevations_to_sheets(elevations, sheet_name):
+  pass
+
 def is_framing_direction_taggable(view_direction, framing_elem):
   framing_elem_FO = framing_elem.FacingOrientation
   if view_direction.IsAlmostEqualTo(XYZ.BasisY)\
@@ -281,6 +288,10 @@ text_note_type_collector = FilteredElementCollector(doc)\
                           .OfCategory(BuiltInCategory.OST_TextNotes)\
                           # .WhereElementIsElementType()
 
+sheet_collector = FilteredElementCollector(doc)\
+                  .OfCategory(BuiltInCategory.OST_Sheets)\
+                  .WhereElementIsNotElementType()
+
 framing_list = list(framing_collector)
 vft_list = list(vft_collector)
 view_plans = list(view_plan_collector)
@@ -306,13 +317,16 @@ column_tag = [tag for tag in column_tag_types\
              if Element.Name.GetValue(tag) ==  column_tag_type_name\
               and tag.FamilyName == column_tag_family_name][0]
 
-placed_view_plans = []
+sheet_list = list(sheet_collector)
+framing_elev_sheet = [sheet for sheet in sheet_list if (Element.Name.GetValue(sheet)) == foundation_sheet_name][0]
 
-for plan in view_plans:
-  if plan.GetPlacementOnSheetStatus() == ViewPlacementOnSheetStatus.CompletelyPlaced:
-    placed_view_plans.append(plan)
-  else:
-    continue
+# placed_view_plans = []
+
+# for plan in view_plans:
+#   if plan.GetPlacementOnSheetStatus() == ViewPlacementOnSheetStatus.CompletelyPlaced:
+#     placed_view_plans.append(plan)
+#   else:
+#     continue
 
 view_family_type = None
 for vft in vft_list:
@@ -388,75 +402,103 @@ with revit.Transaction('Create Framing Elevations'):
       annotation_crop_param = framing_elevation.get_Parameter(BuiltInParameter.VIEWER_ANNOTATION_CROP_ACTIVE)
       annotation_crop_param.Set(True)
 
-with revit.Transaction('Tag Elevations'):
+# with revit.Transaction('Tag Elevations'):
 
-  for elevation in framing_elevations:
+#   for elevation in framing_elevations:
 
-    column_collector = FilteredElementCollector(doc, elevation.Id)\
-                    .OfCategory(BuiltInCategory.OST_StructuralColumns)\
-                    .WhereElementIsNotElementType()
-    framing_collector = FilteredElementCollector(doc, elevation.Id)\
-                    .OfCategory(BuiltInCategory.OST_StructuralFraming)\
-                    .WhereElementIsNotElementType()
+#     column_collector = FilteredElementCollector(doc, elevation.Id)\
+#                     .OfCategory(BuiltInCategory.OST_StructuralColumns)\
+#                     .WhereElementIsNotElementType()
+#     framing_collector = FilteredElementCollector(doc, elevation.Id)\
+#                     .OfCategory(BuiltInCategory.OST_StructuralFraming)\
+#                     .WhereElementIsNotElementType()
 
-    column_list = list(column_collector)
-    framing_list = list(framing_collector)
-    brace_list = [brace for brace in framing_list\
-              if brace.StructuralType\
-              == Structure.StructuralType.Brace]
-    beam_list = [beam for beam  in framing_list\
-                  if beam.StructuralType\
-                  == Structure.StructuralType.Beam]
+#     column_list = list(column_collector)
+#     framing_list = list(framing_collector)
+#     brace_list = [brace for brace in framing_list\
+#               if brace.StructuralType\
+#               == Structure.StructuralType.Brace]
+#     beam_list = [beam for beam  in framing_list\
+#                   if beam.StructuralType\
+#                   == Structure.StructuralType.Beam]
 
-    view_direction = elevation.ViewDirection
+#     view_direction = elevation.ViewDirection
 
-    for brace in brace_list:
-      brace_curve = brace.Location.Curve
-      brace_facing_xyz = brace.FacingOrientation
-      brace_hand_xyz = brace.HandOrientation
+#     for brace in brace_list:
+#       brace_curve = brace.Location.Curve
+#       brace_facing_xyz = brace.FacingOrientation
+#       brace_hand_xyz = brace.HandOrientation
 
-      offset_direction = get_perp_vector_positive_Z(brace_hand_xyz, brace_facing_xyz)
-      midpoint = brace_curve.Evaluate(0.5, True)
-      point = midpoint.Add(offset_direction.Multiply(tag_offset))
+#       offset_direction = get_perp_vector_positive_Z(brace_hand_xyz, brace_facing_xyz)
+#       midpoint = brace_curve.Evaluate(0.5, True)
+#       point = midpoint.Add(offset_direction.Multiply(tag_offset))
 
-      if is_framing_direction_taggable(view_direction, brace):
-        tag = IndependentTag.Create(doc, beam_tag.Id, elevation.Id, Reference(brace), False, TagOrientation.AnyModelDirection, point)
+#       if is_framing_direction_taggable(view_direction, brace):
+#         tag = IndependentTag.Create(doc, beam_tag.Id, elevation.Id, Reference(brace), False, TagOrientation.AnyModelDirection, point)
 
-    beam_tag_offset = tag_offset + 0.2
-    for beam in beam_list:
-      beam_curve = beam.Location.Curve
-      beam_facing_xyz = beam.FacingOrientation
-      beam_hand_xyz = beam.HandOrientation
+#     beam_tag_offset = tag_offset + 0.2
+#     for beam in beam_list:
+#       beam_curve = beam.Location.Curve
+#       beam_facing_xyz = beam.FacingOrientation
+#       beam_hand_xyz = beam.HandOrientation
 
-      offset_direction = get_perp_vector_positive_Z(beam_hand_xyz, beam_facing_xyz)
-      midpoint = beam_curve.Evaluate(0.5, True)
-      point = midpoint.Add(offset_direction.Multiply(beam_tag_offset + 0.3))
+#       offset_direction = get_perp_vector_positive_Z(beam_hand_xyz, beam_facing_xyz)
+#       midpoint = beam_curve.Evaluate(0.5, True)
+#       point = midpoint.Add(offset_direction.Multiply(beam_tag_offset + 0.3))
 
-      beam_text_note_options = TextNoteOptions(text_note_type_id)
-      beam_text_note_options.HorizontalAlignment = HorizontalTextAlignment.Center
-      if is_framing_direction_taggable(view_direction, beam):
-        text_note = TextNote.Create(doc, elevation.Id, point, elevation_beam_text, beam_text_note_options)
+#       beam_text_note_options = TextNoteOptions(text_note_type_id)
+#       beam_text_note_options.HorizontalAlignment = HorizontalTextAlignment.Center
+#       if is_framing_direction_taggable(view_direction, beam):
+#         text_note = TextNote.Create(doc, elevation.Id, point, elevation_beam_text, beam_text_note_options)
 
-    for column in column_list:
-      column_xy_point = column.Location.Point
-      column_bb = column.get_BoundingBox(None)
-      column_base_z = column_bb.Min.Z
-      column_top_z = column_bb.Max.Z
-      mid_z = (column_base_z + column_top_z)/2
-      point = None
+#     for column in column_list:
+#       column_xy_point = column.Location.Point
+#       column_bb = column.get_BoundingBox(None)
+#       column_base_z = column_bb.Min.Z
+#       column_top_z = column_bb.Max.Z
+#       mid_z = (column_base_z + column_top_z)/2
+#       point = None
 
-      if view_direction.IsAlmostEqualTo(XYZ.BasisX)\
-        or view_direction.IsAlmostEqualTo(-(XYZ.BasisX)):
-        point = XYZ(column_xy_point.X, column_xy_point.Y - (tag_offset + 0.5), mid_z)
-      else:
-        point = XYZ(column_xy_point.X - (tag_offset + 0.5),  column_xy_point.Y, mid_z)
+#       if view_direction.IsAlmostEqualTo(XYZ.BasisX)\
+#         or view_direction.IsAlmostEqualTo(-(XYZ.BasisX)):
+#         point = XYZ(column_xy_point.X, column_xy_point.Y - (tag_offset + 0.5), mid_z)
+#       else:
+#         point = XYZ(column_xy_point.X - (tag_offset + 0.5),  column_xy_point.Y, mid_z)
 
-      col_text_note_options = TextNoteOptions(text_note_type_id)
-      col_text_note_options.HorizontalAlignment = HorizontalTextAlignment.Center
-      col_text_note_options.Rotation = 90*math.pi/180
-      text_note = TextNote.Create(doc, elevation.Id, point, elevation_column_text, col_text_note_options)
+#       col_text_note_options = TextNoteOptions(text_note_type_id)
+#       col_text_note_options.HorizontalAlignment = HorizontalTextAlignment.Center
+#       col_text_note_options.Rotation = 90*math.pi/180
+#       text_note = TextNote.Create(doc, elevation.Id, point, elevation_column_text, col_text_note_options)
 
-
+with revit.Transaction('Put Elevations on Sheet'):
+  sheet_min_pt = XYZ(0.1, 0.04, 0)
+  sheet_max_pt = XYZ(3.16, 2.46, 0)
+  sheet_width = sheet_max_pt.X - sheet_min_pt.X
+  sheet_height = sheet_max_pt.Y - sheet_min_pt.Y
+  viewport_h_margin = 0.1
+  viewport_v_margin = 0.1
+  elevation_total_height = 0
+  elevation_total_width = 0
+  upper_left_pt = XYZ(sheet_min_pt.X, sheet_max_pt.Y, 0)
+  anchor_pt = upper_left_pt.Add(XYZ().BasisX.Multiply(viewport_h_margin))\
+              .Subtract(XYZ().BasisY.Multiply(viewport_v_margin))
+  x_offset = 0
+  y_offset = 0
+  for elev in framing_elevations:
+      elev_min = elev.Outline.Min
+      elev_max = elev.Outline.Max
+      elev_height = elev_max.U - elev_min.V
+      elev_width = elev_max.U - elev_min.V
+      elev_anchor_pt = XYZ(elev_min.U - (elev_width/2), elev_max.V + (elev_height/2), 0)
+      elev_width_offset = elev_width/2
+      elev_height_offset = -(elev_height/2)
+      pt = anchor_pt
+      print(pt)
+      pt.Add(XYZ().BasisX.Multiply(elev_width_offset))\
+                    .Add(XYZ().BasisY.Multiply(elev_height_offset))
+      print(pt)
+      point = XYZ(0,0,0)
+      viewport = Viewport.Create(doc, framing_elev_sheet.Id, elev.Id, pt)
 
 
 

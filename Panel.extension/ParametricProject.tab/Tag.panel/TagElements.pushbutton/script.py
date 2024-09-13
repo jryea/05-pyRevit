@@ -11,8 +11,6 @@ doc = __revit__.ActiveUIDocument.Document
 active_view = uidoc.ActiveView
 
 ### VARIABLES ###
-beam_tag_family_name = "IMEG_Structural Framing Tag"
-beam_tag_type_name = "Standard"
 column_tag_family_name = "IMEG_Structural Column Tag"
 column_tag_type_name = "45"
 foundation_tag_family_name = "IMEG_Foundation Tag"
@@ -20,9 +18,6 @@ foundation_tag_type_name = "Mark Only"
 tag_offset = 1 # use view scale to alter this value
 
 ### COLLECTING TAGS ###
-framing_tag_collector = FilteredElementCollector(doc)\
-                        .OfCategory(BuiltInCategory.OST_StructuralFramingTags)\
-                        .WhereElementIsElementType()
 column_tag_collector = FilteredElementCollector(doc)\
                         .OfCategory(BuiltInCategory.OST_StructuralColumnTags)\
                         .WhereElementIsElementType()
@@ -36,13 +31,9 @@ plan_view_collector = FilteredElementCollector(doc)\
                      .OfClass(ViewPlan)\
                      .WhereElementIsNotElementType()
 
-framing_tag_types = list(framing_tag_collector)
 column_tag_types = list(column_tag_collector)
 foundation_tag_types = list(foundation_tag_collector)
 
-beam_tag = [tag for tag in framing_tag_types\
-            if Element.Name.GetValue(tag) == beam_tag_type_name\
-            and tag.FamilyName == beam_tag_family_name][0]
 
 column_tag = [tag for tag in column_tag_types\
              if Element.Name.GetValue(tag) ==  column_tag_type_name\
@@ -56,18 +47,12 @@ foundation_tag = [tag for tag in foundation_tag_types\
 column_collector = FilteredElementCollector(doc)\
                 .OfCategory(BuiltInCategory.OST_StructuralColumns)\
                 .WhereElementIsNotElementType()
-beam_collector = FilteredElementCollector(doc)\
-                .OfCategory(BuiltInCategory.OST_StructuralFraming)\
-                .WhereElementIsNotElementType()
 foundation_collector = FilteredElementCollector(doc)\
                 .OfCategory(BuiltInCategory.OST_StructuralFoundation)\
                 .WhereElementIsNotElementType()
 
 columns = list(column_collector)
 foundations = list(foundation_collector)
-beams_all = list(beam_collector)
-beams = [beam for beam in beams_all if beam.StructuralType\
-         != Structure.StructuralType.Brace]
 
 levels = list(level_collector)
 structural_plans = list(plan_view_collector)
@@ -83,20 +68,11 @@ with revit.Transaction('Create Beams and Joists'):
 
   if column_tag.IsActive == False:
       beam_symbol.Activate()
-  if beam_tag.IsActive == False:
-      beam_tag.Activate()
   if foundation_tag.IsActive == False:
       beam_tag.Activate()
   doc.Regenerate()
 
   for current_plan in placed_plans:
-
-    for beam in beams:
-      line = beam.Location.Curve
-      midpoint = line.Evaluate(0.5, True)
-      perp_vector = get_perp_vector(line.Direction)
-      point = midpoint.Add(perp_vector.Multiply(tag_offset))
-      tag = IndependentTag.Create(doc, beam_tag.Id, current_plan.Id, Reference(beam), False, TagOrientation.AnyModelDirection, point)
 
     for footing in foundations:
       point = None

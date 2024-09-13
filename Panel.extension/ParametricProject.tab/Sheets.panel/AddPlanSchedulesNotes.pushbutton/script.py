@@ -215,6 +215,11 @@ with revit.Transaction('Add Schedules and Notes'):
   sheet_min_pt = sheet_pts_sorted["min"]
   sheet_max_pt = sheet_pts_sorted["max"]
 
+  print('Sheet min point: ')
+  print(sheet_min_pt)
+  print('Sheet max point: ')
+  print(sheet_max_pt)
+
   sheet_outline = Outline(sheet_min_pt, sheet_max_pt)
 
   # Get the extents of the plan viewport on sheet
