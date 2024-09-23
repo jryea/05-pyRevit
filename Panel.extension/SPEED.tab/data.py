@@ -40,7 +40,7 @@ detail_data = (
             },
   'connections': [('2b2c', ['co_st', 'bm_st_ks']), ('c2f', ['co_st','bm_st_sk'])]}})
 
-plan_sheet_data = {
+plan_sheet_data: {
 
   'steel_framing':
     {"schedules": [],
