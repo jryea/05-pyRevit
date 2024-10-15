@@ -1,7 +1,7 @@
 import math
 from Autodesk.Revit.DB import *
 from pyrevit import revit, forms, script
-from utilities import sheets
+from utilities import sheets, geometry
 from utilities.collection import Collection
 from System.Collections.Generic import List
 
@@ -242,7 +242,7 @@ def get_vertical_brace_pairs(brace_pairs):
         # Check to see if brace pair has already been added
         if b2_int_id not in brace_pair_ids:
           # Check to see if elevation is different
-          if are_coords_same(bp1_base_elev, bp2_base_elev, elev_dif_tolerance) == False:
+          if geometry.are_numbers_similiar(bp1_base_elev, bp2_base_elev, elev_dif_tolerance) == False:
               # Check to see if axis is the same
               if is_facing_orientation_equal(b1_FO, b2_FO):
                 #Check to see if parallel dist is the same
@@ -260,6 +260,20 @@ def get_vertical_brace_pairs(brace_pairs):
       all_brace_pairs_vert.append(brace_pairs_vert)
   return all_brace_pairs_vert
 
+def get_curve_based_element_endpoints(elements):
+  element_endpts = []
+  for elem in elements:
+    try:
+        element_curve = elem.Location.Curve
+    except Exception:
+      forms.alert('Element is not curve based')
+      return None
+    pt1 = element_curve.GetEndPoint(0)
+    pt2 = element_curve.GetEndPoint(1)
+    element_endpts.append(pt1)
+    element_endpts.append(pt2)
+  return element_endpts
+
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
 active_view = uidoc.ActiveView
@@ -272,6 +286,18 @@ beam_tag = Collection.get_tag_type(doc, beam_tag_family_name, beam_tag_type_name
 column_tag = Collection.get_tag_type(doc, column_tag_family_name, column_tag_type_name)
 framing_elev_sheet = Collection.get_sheet_by_name(doc, framing_sheet_name)
 view_family_type = Collection.get_view_family_type(doc, elevation_view_type_name)
+current_plan = Collection.get_plan_views(doc)[0]
+
+# Brace points get the min/max of bounding box
+brace_endpts = get_curve_based_element_endpoints(brace_list)
+brace_extents = geometry.get_min_max_extents_from_pts(brace_endpts)
+brace_bb = BoundingBoxXYZ()
+
+brace_bb.Min = brace_extents['min']
+brace_bb.Max = brace_extents['max']
+all_brace_min_pt = brace_extents['min']
+all_brace_max_pt = brace_extents['max']
+all_braces_center_pt = geometry.get_bb_center(brace_bb)
 
 framing_elevations = []
 
@@ -310,9 +336,18 @@ with revit.Transaction('Create Framing Elevations'):
     framing_elev_name = elev_name  + elev_name_suffix
 
     if axis.lower() == 'x':
-      point = XYZ(mid_xy, axis_coord - elevation_marker_offset, mid_z)
+      if axis_coord > all_brace_max_pt.Y:
+        point = XYZ(mid_xy, axis_coord + elevation_marker_offset, mid_z)
+      else:
+        point = XYZ(mid_xy, axis_coord - elevation_marker_offset, mid_z)
+
       elev_marker = ElevationMarker.CreateElevationMarker(doc, view_family_type.Id, point, 50)
-      framing_elevation = elev_marker.CreateElevation(doc,active_view.Id,1)
+
+      if axis_coord > all_brace_max_pt.Y:
+        framing_elevation = elev_marker.CreateElevation(doc, current_plan.Id, 3)
+      else:
+        framing_elevation = elev_marker.CreateElevation(doc, current_plan.Id, 1)
+
       depth_param = framing_elevation.get_Parameter(BuiltInParameter.VIEWER_BOUND_OFFSET_FAR)
       depth_param.Set(12)
       bb = framing_elevation.get_BoundingBox(None)
@@ -328,9 +363,23 @@ with revit.Transaction('Create Framing Elevations'):
       annotation_crop_param.Set(True)
 
     else:
-      point = XYZ(axis_coord  + elevation_marker_offset, mid_xy, mid_z)
+      point = None
+      if axis_coord <= all_brace_min_pt.X\
+      or geometry.are_numbers_similiar(axis_coord, all_brace_min_pt.X, 1):
+        point = XYZ(axis_coord  - elevation_marker_offset, mid_xy, mid_z)
+
+      else:
+        point = XYZ(axis_coord  + elevation_marker_offset, mid_xy, mid_z)
+
       elev_marker = ElevationMarker.CreateElevationMarker(doc, view_family_type.Id, point, 50)
-      framing_elevation = elev_marker.CreateElevation(doc,active_view.Id,0)
+
+      framing_elevation = None
+      if axis_coord <= all_brace_min_pt.X\
+      or geometry.are_numbers_similiar(axis_coord, all_brace_min_pt.X, 1):
+        framing_elevation = elev_marker.CreateElevation(doc, current_plan.Id,2)
+      else:
+        framing_elevation = elev_marker.CreateElevation(doc, current_plan.Id,0)
+
       framing_elevation.Name = framing_elev_name
       bb = framing_elevation.get_BoundingBox(None)
       bb.Min = XYZ(point.Y - width/2 - framing_view_border, point.Z - height/2 - framing_view_border, 0)
@@ -421,7 +470,7 @@ tb_width = tb_max_pt.X - tb_min_pt.X
 tb_height = tb_max_pt.Y - tb_min_pt.Y
 
 h_margin = 0.1
-v_margin = 0.1
+v_margin = 0.15
 
 with revit.Transaction('Put Elevations on Sheet'):
   ## View scales = 32,48,64
@@ -461,9 +510,7 @@ with revit.Transaction('Put Elevations on Sheet'):
   anchor_pt_x = tb_min_pt.X + h_margin
   anchor_pt_y = tb_max_pt.Y - (vp_max_height + v_margin)
   anchor_pt = XYZ(anchor_pt_x, anchor_pt_y, 0)
-  
 
-  
   i = 0
   while i < last_vp_index:
     for vp in row_vps:

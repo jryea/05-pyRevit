@@ -73,9 +73,7 @@ def get_viewport_dimensions(view, viewport):
   vp_min = None
   vp_max = None
   if type(viewport) == ScheduleSheetInstance:
-    print(viewport)
     vp_bb = viewport.get_BoundingBox(view)
-    print(vp_bb)
     vp_min = viewport.get_BoundingBox(view).Min
     vp_max = viewport.get_BoundingBox(view).Max
     width = vp_max.X - vp_min.X

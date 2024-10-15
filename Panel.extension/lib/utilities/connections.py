@@ -38,6 +38,8 @@ def is_pt_within_bb(bb, point):
   return False
 
 def beam2_to_column(doc, beams, column, location):
+  if beams == False or column == False:
+    return None
   connection_box_size = 1.0
   col_top_pt = col.get_column_endpts(doc,column)[location]
   beam_endpts = []
@@ -51,3 +53,14 @@ def beam2_to_column(doc, beams, column, location):
       beam_endpts_in_bb += 1
   if beam_endpts_in_bb >= 2:
     return (True, beam_direction)
+
+def footing_to_column(doc, footings, column):
+  if footings == False:
+    return None
+  connection_box_size = 1.0
+  col_base_pt = col.get_column_endpts(doc,column)['base']
+  col_bb = create_bb_from_pt(col_base_pt, connection_box_size)
+  for footing in footings:
+    footing_location_pt = footing.Location.Point
+    if is_pt_within_bb(col_bb, footing_location_pt):
+      return True

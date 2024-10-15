@@ -23,7 +23,7 @@ c2f = column to footing
 """
 
 detail_data = (
-  
+
 {'2200-03': {
   'name': 'COLUMN FOOTING DETAIL',
   'members': {
@@ -32,7 +32,7 @@ detail_data = (
               },
   'connections':[['co_st', 'sf']]},
 
-'2200-04': {
+'5400-06': {
   'name': 'STEEL JOIST BEARING AT WF COLUMN',
   'members': {
     'structural':['co_st', 'bm_st_ks'],

@@ -4,8 +4,6 @@ from utilities.collection import Collection
 from utilities import geometry
 import time
 
-start_time = time.time()
-
 ## FUNCTIONS ###
 def get_perp_vector(vector):
   perp_vector = vector.CrossProduct(XYZ(0,0,1))
@@ -83,8 +81,6 @@ with revit.Transaction('Tag Elements'):
     point = midpoint.Add(perp_vector.Multiply(tag_offset))
     tag = IndependentTag.Create(doc, beam_tag.Id, active_view.Id, Reference(beam), False, TagOrientation.AnyModelDirection, point)
 
-end_time = time.time()
-print('Time elapsed: ' + str(end_time - start_time))
 
 
 

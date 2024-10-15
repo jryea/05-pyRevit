@@ -3,16 +3,18 @@ from pyrevit import forms
 
 class Collection:
   def __init__(self):
-    self.list = []
+    self._list = []
+  def __len__(self):
+    return len(self._list)
 
   def first():
-    return self.list[0]
+    return self._list[0]
 
   def to_list(self):
-    return self.list
+    return self._list
 
   def length(self):
-    return len(self.list)
+    return len(self._list)
 
   def _create_collector(self, doc, view):
     if view:
@@ -28,7 +30,7 @@ class Collection:
                       .WhereElementIsNotElementType()
     self.elem_list = list(self.collector)
 
-    self.list.extend(self.elem_list)
+    self._list.extend(self.elem_list)
     return self
 
   def add_floors(self, doc, view = None):
@@ -36,8 +38,32 @@ class Collection:
     collector.OfCategory(BuiltInCategory.OST_Floors)\
                 .WhereElementIsNotElementType()
     elem_list = list(collector)
-    self.list.extend(elem_list)
+    self._list.extend(elem_list)
     return self
+  
+  @staticmethod
+  def get_floor_types(doc):
+    collector = FilteredElementCollector(doc)
+    collector.OfClass(FloorType)
+    return list(collector)
+
+  @staticmethod
+  def get_floor_type_if_name_contains(floor_type_list, include_name, include_name2=None, exclude_name=None):
+    for floor_type in floor_type_list:
+      floor_type_name = Element.Name.GetValue(floor_type)
+      if include_name2 and exclude_name:
+        if include_name.lower() in floor_type_name.lower()\
+        and include_name2.lower() in floor_type_name.lower()\
+        and exclude_name.lower() not in floor_type_name.lower():
+          return floor_type
+      elif include_name2:
+        if include_name.lower() in floor_type_name.lower()\
+        and include_name2.lower() in floor_type_name.lower():
+          return floor_type
+      elif exclude_name:
+        if include_name.lower() in floor_type_name.lower()\
+        and exclude_name.lower() not in floor_type_name.lower():
+          return floor_type
 
   def add_beams(self, doc, view=None):
     collector = self._create_collector(doc, view)
@@ -46,7 +72,7 @@ class Collection:
     elem_list = list(collector)
     elem_list = [elem for elem in elem_list if type(elem) == FamilyInstance]
     elem_list = [elem for elem in elem_list if elem.StructuralType == Structure.StructuralType.Beam and type]
-    self.list.extend(elem_list)
+    self._list.extend(elem_list)
     return self
 
   def add_braces(self, doc, view=None):
@@ -56,7 +82,7 @@ class Collection:
     self.elem_list = list(self.collector)
     self.elem_list = [elem for elem in self.elem_list if type(elem) == FamilyInstance]
     self.elem_list = [elem for elem in self.elem_list if elem.StructuralType == Structure.StructuralType.Brace]
-    self.list.extend(self.elem_list)
+    self._list.extend(self.elem_list)
     return self
 
   def add_foundations(self, doc, view=None):
@@ -64,7 +90,7 @@ class Collection:
     self.collector.OfCategory(BuiltInCategory.OST_StructuralFoundation)\
                 .WhereElementIsNotElementType()
     self.elem_list = list(self.collector)
-    self.list.extend(self.elem_list)
+    self._list.extend(self.elem_list)
     return self
 
   def add_framing(self, doc, view=None):
@@ -73,7 +99,7 @@ class Collection:
                 .WhereElementIsNotElementType()
     elem_list = list(collector)
     elem_list = [elem for elem in elem_list if type(elem) == FamilyInstance]
-    self.list.extend(elem_list)
+    self._list.extend(elem_list)
     return self
 
   def add_spread_footings(self, doc, view=None):
@@ -82,7 +108,7 @@ class Collection:
                 .WhereElementIsNotElementType()
     elem_list = list(collector)
     elem_list = [elem for elem in elem_list if type(elem) == FamilyInstance]
-    self.list.extend(elem_list)
+    self._list.extend(elem_list)
     return self
 
   def add_cont_footings(self, doc, view=None):
@@ -91,7 +117,7 @@ class Collection:
                 .WhereElementIsNotElementType()
     elem_list = list(collector)
     elem_list = [elem for elem in elem_list if type(elem) == WallFoundation]
-    self.list.extend(elem_list)
+    self._list.extend(elem_list)
     return self
 
   ######################### STATIC METHODS #####################################
@@ -128,7 +154,7 @@ class Collection:
     collector.OfCategory(BuiltInCategory.OST_Sheets)
     collector.WhereElementIsNotElementType()
     return list(collector)
-  
+
   @staticmethod
   def get_sheet_by_name(doc, sheet_name):
     collector = FilteredElementCollector(doc)
@@ -247,26 +273,28 @@ class Collection:
     collector = FilteredElementCollector(doc)
     collector.OfCategory(BuiltInCategory.OST_TextNotes)
     for elem in collector:
-      print(Element.Name.GetValue(elem))
       if Element.Name.GetValue(elem) == text_note_type_name:
         return elem.Symbol
     forms.alert('Text note type not found')
 
   @staticmethod
-  def get_detail_lines(doc):
+  def get_scope_boxes(doc):
     collector = FilteredElementCollector(doc)
-    collector.OfClass(CurveElement)
+    collector.OfCategory(BuiltInCategory.OST_VolumeOfInterest)
     return list(collector)
-  
+
   ##Reduce filter by materials if possible
-  def filter_columns_by_material(columns, material_key):
-    column_list = None
+  def filter_columns_by_material(self, material_key):
     if material_key == 'st':
-      column_list = [c for c in columns if c.StructuralMaterialType == Structure.StructuralMaterialType.Steel]
+      for elem in self._list[:]:
+        if elem.StructuralType == Structure.StructuralType.Column:
+          if elem.StructuralMaterialType != Structure.StructuralMaterialType.Steel:
+            self._list.remove(elem)
     else:
       pass
-    return column_list
+    return self
 
+  @staticmethod
   def get_columns_from_elements(element_list):
     column_list = []
     for elem in element_list:
@@ -276,14 +304,17 @@ class Collection:
             column_list.append(elem)
     return column_list
 
-  def filter_beams_by_material(beams, material_key):
-    beam_list = None
+  def filter_beams_by_material(self, material_key):
     if material_key == 'st':
-      beam_list = [b for b in beams if b.StructuralMaterialType == Structure.StructuralMaterialType.Steel]
+      for elem in self._list[:]:
+        if elem.StructuralType == Structure.StructuralType.Beam:
+          if elem.StructuralMaterialType != Structure.StructuralMaterialType.Steel:
+            self._list.remove(elem)
     else:
       pass
-    return beam_list
+    return self
 
+  @staticmethod
   def get_beams_from_elements(element_list):
     beam_list = []
     for elem in element_list:
@@ -293,17 +324,109 @@ class Collection:
             beam_list.append(elem)
     return beam_list
 
-  def filter_floors_by_material(floors, material_key):
-    floor_list = None
+  @staticmethod
+  def get_spread_footings_from_elements(element_list):
+    spread_footings = []
+    for elem in element_list:
+      if type(elem) == FamilyInstance:
+        if elem.StructuralType:
+          if elem.StructuralType == Structure.StructuralType.Footing:
+            spread_footings.append(elem)
+    return spread_footings
+
+  def filter_floors_by_material(self, material_key):
     if material_key == 'co':
-      floor_list  = [f for f in floors if "concrete" in Element.Name.GetValue(f.FloorType).lower()]
+      for elem in self._list[:]:
+        if type(elem) == Floor:
+          floor_type_name = Element.Name.GetValue(elem.FloorType)
+          if 'concrete' not in floor_type_name.lower():
+            self._list.remove(elem)
     else:
       pass
-    return floor_list
+    return self
 
-  def filter_framing_by_type(framing, family_key):
+  def filter_beams_by_type(self, family_key):
     fam_name = "K-Series Bar Joist-Angle Web"
-    framing_list = None
     if family_key == 'ks':
-      framing_list = [f for f in framing if f.Symbol.FamilyName == fam_name]
-    return framing_list
+      for elem in self._list[:]:
+        if elem.StructuralType == Structure.StructuralType.Beam:
+          if elem.Symbol.FamilyName != fam_name:
+            self._list.remove(elem)
+    return self._list
+
+###################### OPENINGS #####################
+
+  @staticmethod
+  def get_shafts(doc, view=None):
+    if view:
+      collector = FilteredElementCollector(doc, view.Id)
+    else:
+      collector = FilteredElementCollector(doc)
+    collector.OfCategory(BuiltInCategory.OST_ShaftOpening)
+    collector.WhereElementIsNotElementType()
+    return list(collector)
+
+  #################### DOCUMENTS ######################
+
+  @staticmethod
+  def get_linked_docs(doc):
+    collector = FilteredElementCollector(doc)
+    collector.OfCategory(BuiltInCategory.OST_RvtLinks)
+    collector.WhereElementIsNotElementType()
+    return list(collector)
+
+  ############## DATUM ELEMENTS ############
+
+  @staticmethod
+  def get_levels(doc):
+    collector = FilteredElementCollector(doc)
+    collector.OfCategory(BuiltInCategory.OST_Levels)
+    collector.WhereElementIsNotElementType()
+    return list(collector)
+
+  ############## LINES ############
+
+  @staticmethod
+  def get_detail_lines(doc):
+    collector = FilteredElementCollector(doc)
+    collector.OfClass(CurveElement)
+    return list(collector)
+
+  @staticmethod
+  def get_graphic_styles(doc):
+    collector = FilteredElementCollector(doc)
+    collector.OfClass(GraphicsStyle)
+    return list(collector)
+
+  ############## FAMILIES AND SYMBOLS ############
+  @staticmethod
+  def get_families(doc):
+    collector = FilteredElementCollector(doc)
+    collector.OfClass(Family)
+    return list(collector)
+
+  @staticmethod
+  def get_family_by_name(doc, family_name):
+    doc_families = Collection.get_families(doc)
+    for family in doc_families:
+      if Element.Name.GetValue(family) == family_name:
+        return family
+    print(family_name + ' Family not found')
+    return None
+
+  @staticmethod
+  def get_family_symbols_from_family(doc, family):
+    return_list = []
+    symbol_ids_list = family.GetFamilySymbolIds()
+    for symbol_id in symbol_ids_list:
+      return_list.append(doc.GetElement(symbol_id))
+    return return_list
+
+  @staticmethod
+  def get_family_symbol_by_name(doc, family, symbol_name):
+    family_symbols = get_family_symbols_from_family(doc, family)
+    for symbol in family_symbols:
+      if Element.Name.GetValue(symbol).lower() == symbol_name.lower():
+        return symbol
+
+

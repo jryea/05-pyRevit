@@ -68,6 +68,8 @@ active_view = uidoc.ActiveView
 
 foundation_sheets = get_plan_sheet_by_type(doc, 'shallow_foundation')
 steel_framing_sheets = get_plan_sheet_by_type(doc, 'steel_framing')
+all_plan_sheets = foundation_sheets[:]
+all_plan_sheets.extend(steel_framing_sheets)
 
 foundation_sheet_legend_data = plan_sheet_data['shallow_foundation']['legends']
 foundation_sheet_schedule_data = plan_sheet_data['shallow_foundation']['schedules']
@@ -78,79 +80,89 @@ framing_legends = Collection.get_legends_by_name(doc, framing_sheet_legend_data)
 foundation_schedules = Collection.get_schedules_by_name(doc, foundation_sheet_schedule_data)
 
 vp_type = Collection.get_viewport_type_by_name(doc,viewport_type_name)
-print(vp_type)
-tb_working_area = sheets.get_titleblock_working_area(doc)
+
+titleblock = sheets.get_most_used_titleblock(doc)
+tb_working_area = sheets.get_titleblock_working_area(doc, titleblock)
 
 tb_min_pt = tb_working_area['min_pt']
 tb_max_pt = tb_working_area['max_pt']
 
 with revit.Transaction('Add Schedules and Notes'):
 
-  sheet_outline = Outline(tb_min_pt, tb_max_pt)
-  current_sheet = active_view
+  for current_sheet in all_plan_sheets:
+    sheet_outline = Outline(tb_min_pt, tb_max_pt)
+    sheet_name = Element.Name.GetValue(current_sheet)
 
-  # Get the extents of the plan viewport on sheet
-  plan_viewport = None
-  existing_viewport_ids = current_sheet.GetAllViewports()
-  vp_list = list(existing_viewport_ids)
-  existing_viewports = [doc.GetElement(vp) for vp in vp_list]
-  plan_viewport = sheets.get_largest_viewport(existing_viewports)
+    # Get the extents of the plan viewport on sheet
+    existing_viewport_ids = current_sheet.GetAllViewports()
+    vp_list = list(existing_viewport_ids)
+    existing_viewports = [doc.GetElement(vp) for vp in vp_list]
+    plan_viewport = sheets.get_largest_viewport(existing_viewports)
+    all_vps=[]
 
-  ## Placing views on sheet at 0,0,0
-  legend_vps = sheets.add_views_to_sheet(doc, foundation_legends, current_sheet)
-  schedule_instances = sheets.add_views_to_sheet(doc, foundation_schedules, current_sheet)
-  all_vps = []
-  all_vps.extend(legend_vps)
-  all_vps.extend(schedule_instances)
+    if 'foundation' in sheet_name.lower():
+    ## Placing views on sheet at 0,0,0
+      legend_vps = sheets.add_views_to_sheet(doc, foundation_legends, current_sheet)
+      schedule_instances = sheets.add_views_to_sheet(doc, foundation_schedules, current_sheet)
+      all_vps = legend_vps[:]
+      all_vps.extend(schedule_instances)
 
+    elif 'framing' in sheet_name.lower():
+      legend_vps = sheets.add_views_to_sheet(doc, framing_legends, current_sheet)
+      schedule_instances = []
+      all_vps = legend_vps[:]
+    else:
+      forms.alert('plan type not found')
 
-  # determing where there is space and transforming viewports
-  is_room_for_viewports = is_room_for_viewports(current_sheet, sheet_outline, plan_viewport, all_vps)
+  
+    is_there_room_for_viewports = is_room_for_viewports(current_sheet, sheet_outline, plan_viewport, all_vps)
 
-  print(is_room_for_viewports)
+    margin = 0.02
+    if is_there_room_for_viewports["above"]:
+      anchor_pt = sheet_outline.MaximumPoint
+      for vp in legend_vps:
+        vp_height = sheets.get_viewport_dimensions(current_sheet, vp)["height"]
+        vp_length = sheets.get_viewport_dimensions(current_sheet, vp)["width"]
+        move_pt = XYZ(anchor_pt.X - vp_length/2, anchor_pt.Y - vp_height/2, 0)
+        vp.SetBoxCenter(move_pt)
+        vp_anchor_pt = vp.GetBoxOutline().MaximumPoint
+        anchor_pt = XYZ(vp_anchor_pt.X - (vp_length + margin), vp_anchor_pt.Y, 0)
+        vp.ChangeTypeId(vp_type.Id)
+      if schedule_instances:
+        for schedule in schedule_instances:
+          y_offset = .02
+          schedule_length = sheets.get_viewport_dimensions(current_sheet, schedule)["width"]
+          schedule_height = sheets.get_viewport_dimensions(current_sheet, schedule)["height"]
+          schedule_point = XYZ(anchor_pt.X - schedule_length\
+                            , anchor_pt.Y - y_offset, 0)
+          schedule.Point = schedule_point
+          anchor_pt = XYZ(schedule_point.X - margin, schedule_point.Y + y_offset, 0)
 
-  margin = 0.02
-  if is_room_for_viewports["above"]:
-    anchor_pt = sheet_outline.MaximumPoint
-    for vp in legend_vps:
-      vp_height = sheets.get_viewport_dimensions(current_sheet, vp)["height"]
-      vp_length = sheets.get_viewport_dimensions(current_sheet, vp)["width"]
-      move_pt = XYZ(anchor_pt.X - vp_length/2, anchor_pt.Y - vp_height/2, 0)
-      vp.SetBoxCenter(move_pt)
-      vp_anchor_pt = vp.GetBoxOutline().MaximumPoint
-      anchor_pt = XYZ(vp_anchor_pt.X - (vp_length + margin), vp_anchor_pt.Y, 0)
-      vp.ChangeTypeId(vp_type.Id)
-    for schedule in schedule_instances:
-      y_offset = .02
-      schedule_length = sheets.get_viewport_dimensions(current_sheet, schedule)["width"]
-      schedule_height = sheets.get_viewport_dimensions(current_sheet, schedule)["height"]
-      schedule_point = XYZ(anchor_pt.X - schedule_length\
-                        , anchor_pt.Y - y_offset, 0)
-      schedule.Point = schedule_point
-      anchor_pt = XYZ(schedule_point.X - margin, schedule_point.Y + y_offset, 0)
-
-  elif is_room_for_viewports["below"]:
-    max_pt = sheet_outline.MaximumPoint
-    min_pt = sheet_outline.MinimumPoint
-    anchor_pt = XYZ(max_pt.X, min_pt.Y, 0)
-    for vp in legend_vps:
-      vp_height = sheets.get_viewport_dimensions(current_sheet, vp)["height"]
-      vp_length = sheets.get_viewport_dimensions(current_sheet, vp)["width"]
-      move_pt = XYZ(anchor_pt.X - vp_length/2, anchor_pt.Y + vp_height/2, 0)
-      vp.SetBoxCenter(move_pt)
-      vp_max_pt = vp.GetBoxOutline().MaximumPoint
-      vp_min_pt = vp.GetBoxOutline().MinimumPoint
-      vp_anchor_pt = XYZ(vp_max_pt.X, vp_min_pt.Y, 0)
-      anchor_pt = XYZ(vp_anchor_pt.X - (vp_length + margin), vp_anchor_pt.Y, 0)
-      vp.ChangeTypeId(vp_type.Id)
-    for schedule in schedule_instances:
-      y_offset = .02
-      schedule_length = sheets.get_viewport_dimensions(current_sheet, schedule)["width"]
-      schedule_height = sheets.get_viewport_dimensions(current_sheet, schedule)["height"]
-      schedule_point = XYZ(anchor_pt.X - schedule_length\
-                           ,anchor_pt.Y + y_offset + schedule_height, 0)
-      schedule.Point = schedule_point
-      anchor_pt = XYZ(schedule_point.X - margin, schedule_point.Y - + y_offset - schedule_height, 0)
+    elif is_there_room_for_viewports["below"]:
+      master_sticker_offset = 0.33
+      max_pt = sheet_outline.MaximumPoint
+      min_pt = sheet_outline.MinimumPoint
+      anchor_pt = XYZ(max_pt.X - master_sticker_offset, min_pt.Y, 0)
+      for vp in legend_vps:
+        vp_height = sheets.get_viewport_dimensions(current_sheet, vp)["height"]
+        vp_length = sheets.get_viewport_dimensions(current_sheet, vp)["width"]
+        move_pt = XYZ(anchor_pt.X - vp_length/2, anchor_pt.Y + vp_height/2, 0)
+        vp.SetBoxCenter(move_pt)
+        vp_max_pt = vp.GetBoxOutline().MaximumPoint
+        vp_min_pt = vp.GetBoxOutline().MinimumPoint
+        vp_anchor_pt = XYZ(vp_max_pt.X, vp_min_pt.Y, 0)
+        anchor_pt = XYZ(vp_anchor_pt.X - (vp_length + margin), vp_anchor_pt.Y, 0)
+        vp.ChangeTypeId(vp_type.Id)
+      
+      if schedule_instances:
+        for schedule in schedule_instances:
+          y_offset = .02
+          schedule_length = sheets.get_viewport_dimensions(current_sheet, schedule)["width"]
+          schedule_height = sheets.get_viewport_dimensions(current_sheet, schedule)["height"]
+          schedule_point = XYZ(anchor_pt.X - schedule_length\
+                              ,anchor_pt.Y + y_offset + schedule_height, 0)
+          schedule.Point = schedule_point
+          anchor_pt = XYZ(schedule_point.X - margin, schedule_point.Y - + y_offset - schedule_height, 0)
 
 
 

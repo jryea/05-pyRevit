@@ -2,10 +2,12 @@ from Autodesk.Revit.DB import *
 from pyrevit import revit
 from System.Collections.Generic import List
 from data import data
-from utilities import collectors as col
+from utilities.collection import Collection
 from utilities import selection as sel
 from utilities import connections as conn
-from utilities import view as utilview
+from utilities import views as utilview
+
+
 
 def get_intersecting_elements_in_view(doc, view_id, element, element_list):
     outline = create_outline_from_element(element)
@@ -50,25 +52,25 @@ def get_members(doc, view, key):
   mk = member_keys['material_key']
   fk = member_keys['family_type_key']
   if sk == 'co':
-    columns = col.collect_columns(doc, view)
-    columns = col.filter_columns_by_material(columns, mk)
-    return columns
+    columns = Collection().add_columns(doc, view)
+    columns.filter_columns_by_material(mk)
+    return columns.to_list()
   elif sk == 'bm':
-    beams = col.collect_beams(doc, view)
-    beams = col.filter_beams_by_material(beams, mk)
+    beams = Collection().add_beams(doc, view)
+    beams.filter_beams_by_material(mk)
     if fk:
-      beams = col.filter_framing_by_type(beams, fk)
-    return beams
+      beams.filter_beams_by_type(fk)
+    return beams.to_list()
   elif sk == 'fl':
-    floors = col.collect_floors(doc, view)
-    floors = col.filter_floors_by_material(floors, mk)
-    return floors
+    floors = Collection().add_floors(doc, view)
+    floors.filter_floors_by_material(mk)
+    return floors.to_list()
   elif sk == 'sf':
-    spread_footings = col.collect_spread_footings(doc, view)
-    return spread_footings
-  elif member_keys['structural_type_key'] == 'cf':
-    cont_footings = col.collect_cont_footings(doc, view)
-    return cont_footings
+    spread_footings = Collection().add_spread_footings(doc, view)
+    return spread_footings.to_list()
+  elif sk == 'cf':
+    cont_footings = Collection().collect_cont_footings(doc, view)
+    return cont_footings.to_list()
   else:
     print('member key is not valid')
     return None
@@ -79,46 +81,58 @@ def get_detail_members(doc, view, detail):
   for key in member_keys:
     members = get_members(doc, view, key)
     if members:
-      detail_members.extend(get_members(doc, view, key))
+      detail_members.extend(members)
   return detail_members
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
 active_view = doc.ActiveView
 
-view_collector = FilteredElementCollector(doc)\
-                 .OfCategory(BuiltInCategory.OST_Views)\
-                 .WhereElementIsNotElementType()
+## TESTING
+plan_views = Collection.get_plan_views(doc)
 
-view_list = list(view_collector)
-plan_views = [view for view in view_list if view.ViewType == ViewType.EngineeringPlan]
-drafting_views = [view for view in view_list if view.ViewType == ViewType.DraftingView]
+drafting_views = Collection.get_drafting_views(doc)
+
 plan_views_on_sheet = [view for view in plan_views if view.GetPlacementOnSheetStatus() == ViewPlacementOnSheetStatus.CompletelyPlaced]
+
 drafting_views_on_sheet = [view for view in drafting_views if view.GetPlacementOnSheetStatus() == ViewPlacementOnSheetStatus.CompletelyPlaced]
 
 detail_data = data.detail_data
 detail_01 = get_detail_dict('2200-03', detail_data)
-detail_02 = get_detail_dict('2200-04', detail_data)
+detail_02 = get_detail_dict('5400-06', detail_data)
 detail_01_ref_view = get_drafting_ref_view('2200-03', drafting_views_on_sheet)
-detail_02_ref_view = get_drafting_ref_view('2200-04', drafting_views_on_sheet)
+detail_02_ref_view = get_drafting_ref_view('5400-06', drafting_views_on_sheet)
 
 with revit.Transaction('Create Section Cuts'):
-  detail_01_location_pts_w_direction = []
-  detail_02_location_pts_w_direction = []
-  detail_01_members = get_detail_members(doc, active_view, detail_01)
-  detail_02_members = get_detail_members(doc, active_view, detail_02)
-  detail_01_columns = col.get_columns_from_elements(detail_01_members)
-  detail_01_beams = col.get_beams_from_elements(detail_01_members)
-  detail_02_columns = col.get_columns_from_elements(detail_02_members)
-  detail_02_beams = col.get_beams_from_elements(detail_02_members)
-  for column in detail_02_columns:
-    connection = conn.beam2_to_column(doc, detail_02_beams, column, 'top')
-    if connection:
-      if connection[0]:
-        direction = connection[1]
-        col_pt = column.Location.Point
-        detail_02_location_pts_w_direction.append((col_pt, direction))
-  for pt_direction in detail_02_location_pts_w_direction:
-    pt = pt_direction[0]
-    direction = pt_direction[1]
-    ref_section = utilview.create_ref_section(doc, active_view, detail_02_ref_view, pt, direction)
+  for view in plan_views_on_sheet:
+    detail_01_location_pts_w_direction = []
+    detail_02_location_pts_w_direction = []
+    detail_01_members = get_detail_members(doc, view, detail_01)
+    detail_02_members = get_detail_members(doc, view, detail_02)
+    detail_01_columns = Collection.get_columns_from_elements(detail_01_members)
+    detail_01_spread_footings = Collection.get_spread_footings_from_elements(detail_01_members)
+    detail_02_columns = Collection.get_columns_from_elements(detail_02_members)
+    detail_02_beams = Collection.get_beams_from_elements(detail_02_members)
+
+    for column in detail_01_columns:
+      if detail_01_spread_footings:
+        connection = conn.footing_to_column(doc, detail_01_spread_footings, column)
+        if connection:
+          direction = XYZ().BasisY
+          pt = column.Location.Point
+          ref_section = utilview.create_ref_section(doc, view, detail_01_ref_view, pt, direction)
+
+    for column in detail_02_columns:
+      if detail_02_beams:
+        connection = conn.beam2_to_column(doc, detail_02_beams, column, 'top')
+        if connection:
+          if connection[0]:
+            direction = connection[1]
+            col_pt = column.Location.Point
+            detail_02_location_pts_w_direction.append((col_pt, direction))
+    for pt_direction in detail_02_location_pts_w_direction:
+      if detail_02_beams:
+        pt = pt_direction[0]
+        direction = pt_direction[1]
+        ref_section = utilview.create_ref_section(doc, view, detail_02_ref_view, pt, direction)
+
