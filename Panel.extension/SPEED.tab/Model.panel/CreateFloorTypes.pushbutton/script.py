@@ -1,83 +1,56 @@
-from Autodesk.Revit.DB import *
-from pyrevit import revit, forms
-from utilities.collection import Collection
-from utilities import datum, geometry, families, files
-from utilities import floors as floor_utils
-from System.Collections.Generic import List
+import clr
+# import requests
+clr.AddReferenceToFileAndPath("C:\\Windows\\Microsoft.NET\\assembly\\GAC_MSIL\\netstandard\\v4.0_2.0.0.0__cc7b13ffcd2ddd51\\netstandard.dll")
+clr.AddReferenceToFileAndPath(r"C:\Users\Jon.R.Ryea\AppData\Roaming\McNeel\Rhinoceros\8.0\Plug-ins\SpeckleRhino2 (8dd5f30b-a13d-4a24-abdc-3e05c8c87143)\SpeckleCore2.dll")
 
-# ## VARIABLES ##
-init_dir = R'SPEED.tab\C:\Users\Jon.R.Ryea\OneDrive - IMEG Corp\Desktop\08 Parametric Engineering Project'
+from Speckle.Core.Credentials import *
+from Speckle.Core.Api import *
+from Speckle.Core.Transports import *
+from Speckle.Core.Models import *
 
-base_path = R'\\files\Corporate\Standards\CAD-BIM Standards\Content\2023 Revit\zOOTB\2023\English-Imperial'
+from pyrevit import forms
 
-file_path = forms.pick_file(title = 'Select a file', file_ext = 'xlsx', multi_file=False, restore_dir=False, init_dir=init_dir)
+speckle_stream_url = forms.ask_for_string(default = 'url',
+                     prompt= 'Speckle Stream URL',
+                     title='Get Speckle Stream'
+                     )
 
-family_data_list = files.get_excel_data_by_column(file_path, 1)
+data = Helpers.Receive(speckle_stream_url).Result
 
-def get_family_name_from_data(family_data):
-  family_data_split = family_data.split(';')
-  family_name = family_data_split[2].strip()
-  return family_name
+# Use method GetDynamicMemberNames() on Base object to get children
+outer_wrapper = data['Data']
+base = outer_wrapper[r'@{0}'][0]
+family_data = base['@familyData']
 
-def get_family_symbol_from_data(family_data):
-  family_data_split = family_data.split(';')
-  family_symbol_name = family_data_split[3].strip()
-  return family_symbol_name
+print(family_data)
 
-def is_floor_data(family_data):
-  family_data_split = family_data.split(';')
-  category = family_data_split[0].strip()
-  if category.lower() == 'floor'\
-    or category.lower() == 'floors':
-      return True
-  else:
-    return False
+# print(data_data.GetDynamicMemberNames())
+# print(data2.GetDynamicMemberNames())
 
-def get_floor_type_data(family_data):
-  floor_data_split = family_data.split(';')
-  category = floor_data_split[0].strip()
-  material = floor_data_split[1].strip()
-  type_name = floor_data_split[2].strip()
-  thickness1 = float(floor_data_split[3].strip())
-  thickness2 = None
-  if len(floor_data_split) > 4:
-    thickness2 = float(floor_data_split[4].strip())
-  return {'category': category, 'material': material, 'type_name': type_name, 'thickness1': thickness1, 'thickness2': thickness2}
+# account = AccountManager.GetDefaultAccount()
+# client = Client(account)
 
-def get_base_floor_type_from_family_data(floor_types, family_data):
-  floor_type = None
-  existing_floor = None
-  floor_data = get_floor_type_data(family_data)
-  material = floor_data['material']
-  if 'concrete' in material.lower()\
-    and 'deck' in material.lower():
-    floor_type = Collection.get_floor_type_if_name_contains(floor_types, 'concrete', include_name2='deck')
-  elif 'concrete' in material.lower():
-    floor_type = Collection.get_floor_type_if_name_contains(floor_types, 'concrete', exclude_name='deck')
-  elif 'deck' in material.lower():
-    floor_type = Collection.get_floor_type_if_name_contains(floor_types, 'deck', exclude_name='concrete')
-  else:
-    print('Floor Type not recognized')
-  return floor_type
+# print(client.streams)
 
-uidoc = __revit__.ActiveUIDocument
-doc = __revit__.ActiveUIDocument.Document
-active_view = doc.ActiveView
+# branches = client.StreamGetBranches()
+# branch = await client.BranchGet(streamId, branchName)
+# print(account)
+# print(client.List())
 
-all_floors = Collection().add_floors(doc).to_list()
-all_floor_types = Collection.get_floor_types(doc)
+# print(Api.Client(account))
+# Core.GetProperties()
+# client = Client(account)
+# print(client)
 
-with revit.Transaction('Create Floor Types'):
-  for family_data in family_data_list:
-    if is_floor_data(family_data):
-      base_floor_type = get_base_floor_type_from_family_data(all_floor_types, family_data)
-      floor_type_data = get_floor_type_data(family_data)
-      thickness1 = floor_type_data['thickness1']
-      thickness2 = floor_type_data['thickness2']
-      type_name = floor_type_data['type_name']
-      if floor_utils.does_floor_type_exist(all_floor_types, type_name):
-        continue
-      else:
-        new_floor = floor_utils.create_floor_type(base_floor_type, type_name, thickness1, thickness2)
+# ops = {'Sheet Set A': ['Item1', 'Item2', 'Item3'],
+#        'Sheet Set B': ['ItemA', 'ItemB', 'ItemC']}
+# res = forms.SelectFromList.show(ops,
+#                                 multiselect=True,
+#                                 # name_attr='Name',
+#                                 group_selector_title='Sheet Sets',
+#                                 title='Select Speckle Stream',
+#                                 button_name='Select Sheets')
+# if res.Id == viewsheet1.Id:
+#     do_stuff()
 
 

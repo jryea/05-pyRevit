@@ -1,8 +1,6 @@
 from Autodesk.Revit.DB import *
 from utilities.collection import Collection
 
-# family_path = r`C:\temp\Test Family.rfa
-## is family loaded - if not, load it
 def is_family_loaded(doc, family_name):
   doc_families = Collection.get_families(doc)
   doc_family_names = [Element.Name.GetValue(family) for family in doc_families]
@@ -13,7 +11,7 @@ def is_family_loaded(doc, family_name):
 
 def load_family(doc, family_name, family_path):
   if doc.LoadFamily(family_path):
-    print('Loaded Family: ' + family_name)
+    print(family_name + ' family loaded')
   else:
     print('Could not load family!')
 

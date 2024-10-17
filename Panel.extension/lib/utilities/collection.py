@@ -40,7 +40,7 @@ class Collection:
     elem_list = list(collector)
     self._list.extend(elem_list)
     return self
-  
+
   @staticmethod
   def get_floor_types(doc):
     collector = FilteredElementCollector(doc)
