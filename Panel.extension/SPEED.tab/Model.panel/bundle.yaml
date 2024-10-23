@@ -1,4 +1,4 @@
 layout:
   - CreateShafts
   - LoadFamilies
-  - CreateFloorTypes
+  - ScopeBox

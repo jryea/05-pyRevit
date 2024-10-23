@@ -131,6 +131,8 @@ class Collection:
       built_in_cat = BuiltInCategory.OST_StructuralColumnTags
     elif 'foundation' in tag_family.lower():
       built_in_cat = BuiltInCategory.OST_StructuralFoundationTags
+    elif 'floor' in tag_family.lower():
+      built_in_cat = BuiltInCategory.OST_FloorTags
     collector = FilteredElementCollector(doc)
     collector.OfCategory(built_in_cat).WhereElementIsElementType()
     for tag in collector:

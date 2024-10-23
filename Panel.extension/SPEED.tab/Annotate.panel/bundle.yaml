@@ -1,6 +1,7 @@
 layout:
   - DimensionGrids
   - DimensionJoists
-  -------
+  - ------
   - TagElements
   - TagBeams
+  - TagSlabs

@@ -1,8 +1,7 @@
 from Autodesk.Revit.DB import *
 from pyrevit import revit, forms, script
 from utilities.collection import Collection
-from utilities import geometry
-import time
+from utilities import geometry, families
 
 ## FUNCTIONS ###
 def get_perp_vector(vector):
@@ -20,15 +19,22 @@ column_tag_family_name = "IMEG_Structural Column Tag"
 column_tag_type_name = "45"
 foundation_tag_family_name = "IMEG_Foundation Tag"
 foundation_tag_type_name = "Mark Only"
+floor_tag_family_name = 'Floor Tag'
+floor_tag_type_name = 'Standard'
+floor_tag_path  = r'C:\Users\Jon.R.Ryea\OneDrive - IMEG Corp\Desktop\08 Parametric Engineering Project\Phase 2 - STEEL\03 Revit\Families\Floor Tag.rfa'
 tag_offset = 1 # use view scale to alter this value
 
 column_tag = Collection.get_tag_type(doc, column_tag_family_name, column_tag_type_name)
 beam_tag = Collection.get_tag_type(doc, beam_tag_family_name, beam_tag_type_name)
 foundation_tag = Collection.get_tag_type(doc, foundation_tag_family_name, foundation_tag_type_name)
+floor_tag = Collection.get_tag_type(doc, floor_tag_family_name, floor_tag_type_name)
+if floor_tag == None:
+  families.load_family(doc, floor_tag_family_name, floor_tag_path)
 
 columns = Collection().add_columns(doc, active_view).to_list()
 foundations = Collection().add_foundations(doc, active_view).to_list()
 beams = Collection().add_beams(doc, active_view).to_list()
+floors = Collection().add_floors(doc, active_view).to_list()
 
 with revit.Transaction('Tag Elements'):
 
@@ -37,6 +43,8 @@ with revit.Transaction('Tag Elements'):
   if foundation_tag.IsActive == False:
     beam_tag.Activate()
   if foundation_tag.IsActive == False:
+    foundation_tag.Activate()
+  if floor_tag.IsActive == False:
     foundation_tag.Activate()
   doc.Regenerate()
 
@@ -80,6 +88,11 @@ with revit.Transaction('Tag Elements'):
     perp_vector = get_perp_vector(line.Direction)
     point = midpoint.Add(perp_vector.Multiply(tag_offset))
     tag = IndependentTag.Create(doc, beam_tag.Id, active_view.Id, Reference(beam), False, TagOrientation.AnyModelDirection, point)
+
+  for floor in floors:
+    floor_bb = floor.get_BoundingBox(None)
+    point = geometry.get_bb_center(floor_bb)
+    tag = IndependentTag.Create(doc, floor_tag.Id, active_view.Id, Reference(floor), False, TagOrientation.Horizontal, point)
 
 
 

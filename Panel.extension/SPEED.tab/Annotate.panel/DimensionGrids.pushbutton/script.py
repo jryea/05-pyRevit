@@ -16,7 +16,6 @@ def create_grid_dimensions(grids, view, offset, dim_axis):
   grid_line = Line.CreateBound(line_start_pt, line_end_pt)
   doc.Create.NewDimension(view, grid_line, ref_array)
 
-
 def set_grid_direction(grids, view):
   for grid in grids:
     grid_line = grid.GetCurvesInView(DatumExtentType.Model, view)[0]
@@ -56,7 +55,6 @@ uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
 active_view = uidoc.ActiveView
 
-
 grids_col = FilteredElementCollector(doc)\
           .OfClass(Grid)\
           .WhereElementIsNotElementType()
@@ -67,16 +65,21 @@ plan_view_collector = FilteredElementCollector(doc)\
 grids_list = list(grids_col)
 plan_list = list(plan_view_collector)
 
-placed_plans = []
+if len(grids_list) == 0:
+  forms.alert("You can't dimension grids if they don't exist", title='Grids not found')
+  script.exit()
 
-for plan in plan_list:
-  if plan.GetPlacementOnSheetStatus() == ViewPlacementOnSheetStatus.CompletelyPlaced:
-    placed_plans.append(plan)
-  else:
-    continue
+plan_views = forms.select_views(
+  title='Select views to dimension grids',
+  filterfunc = lambda x: x.ViewType == ViewType.EngineeringPlan
+)
+
+if (plan_views == None
+  or len(plan_views) == 0):
+  forms.alert("Please select at least one plan view", title='No plan views selected')
+  script.exit()
 
 with revit.Transaction('Create Grids'):
-
   grids_horiz = [grid for grid in grids_list if grid.Curve.Direction\
                     .IsAlmostEqualTo(grid.Curve.Direction.BasisX) or\
                       grid.Curve.Direction.IsAlmostEqualTo(-(grid.Curve.Direction.BasisX))]
@@ -85,34 +88,16 @@ with revit.Transaction('Create Grids'):
                       grid.Curve.Direction.IsAlmostEqualTo(-(grid.Curve.Direction.BasisY))]
   sorted_grids_horiz = sort_grids_by_axis(grids_horiz, axis = 'Y')
   sorted_grids_vert = sort_grids_by_axis(grids_vert, axis = 'X')
-  
+
   overall_horiz = [sorted_grids_horiz[0], sorted_grids_horiz[-1]]
   overall_vert = [sorted_grids_vert[0], sorted_grids_vert[-1]]
-    
-  for plan in placed_plans:
-    
+
+  for plan in plan_views:
     overall_grid_dims_X = create_grid_dimensions(overall_vert, plan, 2, 'X')
     overall_grid_dims_Y = create_grid_dimensions(overall_horiz, plan, 2, 'Y')
-    
     grid_dims_X = create_grid_dimensions(grids_vert, plan, 6, 'X')
     grid_dims_Y = create_grid_dimensions(grids_horiz, plan, 6, 'Y')
-  
- 
-#   # Create dimension strings
-#   horiz_
-#   for grid in grids_horiz:
-#     overall_reference_array = ReferenceArray()
-#     grid_reference_array = ReferenceArray()
 
-#     for grid in grids:
-#       grid_curve = grid.GetCurvesInView(DatumExtentType.ViewSpecific, current_view)[0]
-#       grid_start = grid_curve.GetEndPoint(0)
-#       grid_end = grid_curve.GetEndPoint(1)
-#       grid_reference_array.Append(Reference(grid))
-#     overall_reference_array.Append(Reference(min_grid))
-#     overall_reference_array.Append(Reference(max_grid))
-#     doc.Create.NewDimension(current_view, overall_dim_line, overall_reference_array)
-#     doc.Create.NewDimension(current_view, grid_dim_line, grid_reference_array)
 
 
 

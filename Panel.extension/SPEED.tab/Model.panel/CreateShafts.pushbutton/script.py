@@ -28,8 +28,6 @@ graphic_styles = Collection.get_graphic_styles(doc)
 graphic_style = [gs for gs in graphic_styles if Element.Name.GetValue(gs) == graphic_style_name][0]
 
 plan_views = Collection.get_plan_views(doc)
-placed_plan_views = [v for v in plan_views if v.GetPlacementOnSheetStatus()\
-  == ViewPlacementOnSheetStatus.CompletelyPlaced]
 
 new_shafts = []
 
@@ -63,7 +61,7 @@ with revit.Transaction('Add Shafts'):
 
   doc.Regenerate()
   ## Add shaft lines
-  for plan in placed_plan_views:
+  for plan in plan_views:
     floors = Collection().add_floors(doc, plan).to_list()
     shafts = Collection.get_shafts(doc, plan)
     for shaft in shafts:

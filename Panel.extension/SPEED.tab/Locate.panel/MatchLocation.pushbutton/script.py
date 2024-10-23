@@ -1,6 +1,7 @@
 import clr
 from Autodesk.Revit.DB import *
 from pyrevit import revit, forms, script
+from utilities import selection
 from System.Collections.Generic import List
 
 def get_bb_center(bb):
@@ -19,12 +20,6 @@ def get_line_intersection(line1, line2):
     if result == SetComparisonResult.Overlap:
       int_pt = int_result_array.get_Item(0).XYZPoint
       return int_pt
-
-# def remove_duplicate_pts(all_int_pts):
-#   tol = .01
-#   culled_pts = []
-#   for pt in all_int_pts:
-
 
 ## Return a list of lists: [y1,[X1, x2, x3, x4]][y2, [x1, x2, x3, x4]]
 def get_line_intersections(lines):
@@ -112,11 +107,20 @@ all_element_ids.extend(framing_ids)
 all_element_ids.extend(column_ids)
 element_ids_List = List[ElementId](all_element_ids)
 
-try:
-  grid_int_points = get_grid_intersections(grids)
-except Exception as e:
-  forms.alert('Please pick a view where grids are visible')
+# print(len(direct_shapes))
+# for shape in direct_shape_collector:
+#   print(Element.Name.GetValue(shape))
+# selection.return_selection(uidoc, list(direct_shapes))
+
+if len(all_element_ids) == 0:
+  forms.alert('No model elements found')
   script.exit()
+
+if len(grids) == 0:
+  forms.alert('Grids are needed to locate the imported model', title='Missing grids')
+  script.exit()
+
+grid_int_points = get_grid_intersections(grids)
 
 min_x_pt = get_min_max_pts(grid_int_points)['min_x']
 max_x_pt = get_min_max_pts(grid_int_points)['max_x']
@@ -124,12 +128,29 @@ min_y_pt = get_min_max_pts(grid_int_points)['min_y']
 max_y_pt = get_min_max_pts(grid_int_points)['max_y']
 
 
-## Return lower left, lower right, upper right, upper left, and center
-# find_pts_in_list()
+import_sphere = None
 
-import_sphere = [shape for shape in list(direct_shape_collector)\
-                if Element.Name.GetValue(shape) == 'import sphere'][0]
+error_title = 'Location'
+error_message = "The imported model's location object not found"
+if len(direct_shapes) > 0:
+  for shape in direct_shapes:
+    if (Element.Name.GetValue(shape) == 'import sphere'
+    and shape.get_BoundingBox(None) != None):
+      import_sphere = shape
+      break
+    else:
+      forms.alert(error_message, error_title)
+      script.exit()
+else:
+  forms.alert(error_message, error_title)
+  script.exit()
+
 bb = import_sphere.get_BoundingBox(None)
+
+if bb == None:
+  forms.alert('Location object not found')
+  script.exit()
+
 import_pt = get_bb_center(bb)
 ll_grid_int_pt = XYZ(min_x_pt, min_y_pt, 0)
 

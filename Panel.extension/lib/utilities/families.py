@@ -38,5 +38,12 @@ def create_family_symbol(doc, family, family_symbol_name):
   print('Created family symbol ' + family_symbol_name)
   return new_family_symbol
 
-#does family have symbol - if not, create it
-#insert family
+
+def delete_unused_symbols(doc, family, family_symbol_names):
+  all_family_symbols_ids = list(family.GetFamilySymbolIds())
+  all_family_symbols = [doc.GetElement(id) for id in all_family_symbols_ids]
+  for symbol in all_family_symbols:
+    symbol_name = Element.Name.GetValue(symbol)
+    if symbol_name not in family_symbol_names:
+      doc.Delete(symbol.Id)
+  

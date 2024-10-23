@@ -14,14 +14,11 @@ def does_shaft_intersect_floors(doc, shaft, floors):
       does_intersect = True
   return does_intersect
 
-def create_floor_type(existing_floor,type_name, thickness1, thickness2=None):
+def create_floor_type(existing_floor,type_name, thickness):
+  thickness = float(thickness)
   new_floor_type = existing_floor.Duplicate(type_name)
   compound_structure = new_floor_type.GetCompoundStructure()
-  if thickness2:
-    pass
-  else:
-    if compound_structure.GetLayerFunction(0) != MaterialFunctionAssignment.StructuralDeck:
-      compound_structure.SetLayerWidth(0, thickness1)
+  compound_structure.SetLayerWidth(0, thickness)
   new_floor_type.SetCompoundStructure(compound_structure)
   return new_floor_type
 
