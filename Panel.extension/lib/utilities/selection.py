@@ -1,5 +1,4 @@
 from Autodesk.Revit.DB import *
-from utilities import selection as sel
 from System.Collections.Generic import List
 
 def return_selection(uidoc, elements):

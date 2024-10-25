@@ -192,7 +192,7 @@ class Collection:
       forms.alert('No views with specified view templates found')
 
   @staticmethod
-  def get_plan_views(doc, view = None):
+  def get_plan_views(doc):
     collector = FilteredElementCollector(doc)
     collector.OfCategory(BuiltInCategory.OST_Views)
     collector.WhereElementIsNotElementType()
@@ -200,7 +200,7 @@ class Collection:
     return elem_list
 
   @staticmethod
-  def get_drafting_views(doc, view = None):
+  def get_drafting_views(doc):
     collector = FilteredElementCollector(doc)
     collector.OfCategory(BuiltInCategory.OST_Views)
     collector.WhereElementIsNotElementType()
@@ -385,6 +385,20 @@ class Collection:
     collector.OfCategory(BuiltInCategory.OST_Levels)
     collector.WhereElementIsNotElementType()
     return list(collector)
+  
+  @staticmethod
+  def get_grids(doc, view=None):
+    if view:
+      collector = (FilteredElementCollector(doc, view.Id)
+                 .OfCategory(BuiltInCategory.OST_Grids)
+                 .WhereElementIsNotElementType())
+      return list(collector)
+    else:
+      collector = (FilteredElementCollector(doc)
+                  .OfCategory(BuiltInCategory.OST_Grids)
+                  .WhereElementIsNotElementType())
+      return list(collector)
+
 
   ############## LINES ############
 

@@ -46,4 +46,13 @@ def delete_unused_symbols(doc, family, family_symbol_names):
     symbol_name = Element.Name.GetValue(symbol)
     if symbol_name not in family_symbol_names:
       doc.Delete(symbol.Id)
-  
+
+def get_family_instance_point_reference(fam_instance):
+  opt = Options()
+  opt.ComputeReferences = True
+  opt.IncludeNonVisibleObjects = True
+  fam_instance_geo = fam_instance.get_Geometry(opt)
+  for geo in fam_instance_geo:
+    if type(geo) == Point:
+      return geo.Reference
+  # print(list(fam_instance_geo))

@@ -167,7 +167,7 @@ with revit.Transaction('Dimension Beams'):
       ref_array.Append(Reference(beam))
     print(len(list(ref_array)))
     doc.Create.NewDimension(active_view, dim_line, ref_array)
-    
+
   for group in grid_beam_groupings["vert"]:
     grid = group[0]
     beams = group[1]

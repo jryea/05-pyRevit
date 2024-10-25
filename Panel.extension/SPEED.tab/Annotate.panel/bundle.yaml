@@ -1,5 +1,7 @@
 layout:
   - DimensionGrids
+  - DimensionColumns
+  - DimensionBeams
   - DimensionJoists
   - ------
   - TagElements
